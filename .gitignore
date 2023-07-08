@@ -1,5 +1,6 @@
 omap4_abe_new
 tags
+*.json
 
 # Ignore vim files:
 *~
