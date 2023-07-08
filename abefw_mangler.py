@@ -62,7 +62,7 @@ def header(fmt):
 @dataclass
 class SndSocFwHeader:
     magic: str
-    version: int
+    abi: int
     type: int
     vendor_type: int
     vendor_version: int
@@ -178,7 +178,7 @@ def main(args):
     fw = args.fw_file
     while fw.peek(1):
         hdr = SndSocFwHeader(fw)
-        print(f'ASoC: Got 0x{hdr.size:x} bytes of type {hdr.type} version {hdr.version} vendor {hdr.vendor_type} at pass X')
+        print(f'ASoC: Got 0x{hdr.size:x} bytes of type {hdr.type} version {hdr.abi} vendor {hdr.vendor_type} at pass X')
         next_offset = fw.tell() + hdr.size
         if hdr.type == SND_SOC_FW_MIXER:
             sfwk = SndSocFwKControl(fw)
