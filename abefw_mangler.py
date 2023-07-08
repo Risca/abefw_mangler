@@ -12,7 +12,11 @@ from enum import Enum
 from io import BufferedReader, BytesIO, SEEK_CUR, SEEK_SET
 import argparse
 import functools
+import logging
 import struct
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('main')
 
 SND_SOC_FW_MIXER = 1
 SND_SOC_FW_DAPM_GRAPH = 2
@@ -175,14 +179,16 @@ class AbeFirmwareHeader:
 
 def main(args):
     """ Main entry point of the app """
+    if args.verbose >= 1:
+        log.setLevel(logging.DEBUG)
     fw = args.fw_file
     while fw.peek(1):
         hdr = SndSocFwHeader(fw)
-        print(f'ASoC: Got 0x{hdr.size:x} bytes of type {hdr.type} version {hdr.abi} vendor {hdr.vendor_type} at pass X')
+        log.debug(f'ASoC: Got 0x{hdr.size:x} bytes of type {hdr.type} version {hdr.abi} vendor {hdr.vendor_type} at pass X')
         next_offset = fw.tell() + hdr.size
         if hdr.type == SND_SOC_FW_MIXER:
             sfwk = SndSocFwKControl(fw)
-            print(f'ASoC: adding {sfwk.count} kcontrols')
+            log.debug(f'ASoC: adding {sfwk.count} kcontrols')
             for index in range(sfwk.count):
                 control_hdr = SndSocFwControlHeader(fw)
                 if control_hdr.id_info in [
@@ -197,11 +203,11 @@ def main(args):
                         SocType.DAPM_VOLSW,
                         SocType.DAPM_PIN ]:
                     mc = SndSocFwMixerControl(fw)
-                    print(f'ASoC: adding mixer kcontrol {control_hdr.name} with access 0x{control_hdr.access}')
+                    log.debug(f'ASoC: adding mixer kcontrol {control_hdr.name} with access 0x{control_hdr.access}')
                     if control_hdr.tlv_size != 0:
                         tlv = SndSocFwControlTlv(fw)
                         fw.seek(tlv.length, SEEK_CUR)
-                        print(f' created TLV type {tlv.numid} size {tlv.length} bytes')
+                        log.debug(f' created TLV type {tlv.numid} size {tlv.length} bytes')
                 elif control_hdr.id_info in [
                         SocType.CONTROL_ENUM,
                         SocType.CONTROL_ENUM_EXT,
@@ -211,23 +217,23 @@ def main(args):
                         SocType.DAPM_ENUM_VALUE,
                         SocType.DAPM_ENUM_EXT ]:
                     ec = SndSocFwEnumControl(fw)
-                    print(f'ASoC: adding enum kcontrol {control_hdr.name} size {ec.max}')
+                    log.debug(f'ASoC: adding enum kcontrol {control_hdr.name} size {ec.max}')
                 else:
-                    print(f'ASoC: invalid control type')
+                    log.warning(f'ASoC: invalid control type')
         elif hdr.type == SND_SOC_FW_DAPM_GRAPH:
             elem_info = SndSocFwDapmElems(fw)
-            print(f'ASoC: adding {elem_info.count} DAPM routes')
+            log.debug(f'ASoC: adding {elem_info.count} DAPM routes')
             for index in range(elem_info.count):
                 elem = SndSocFwDapmGraphElem(fw)
         elif hdr.type == SND_SOC_FW_DAPM_WIDGET:
             elem_info = SndSocFwDapmElems(fw)
-            print(f'ASoC: adding {elem_info.count} DAPM widgets')
+            log.debug(f'ASoC: adding {elem_info.count} DAPM widgets')
             for index in range(elem_info.count):
                 widget = SndSocFwDapmWidget(fw)
-                print(f'ASoC: creating DAPM widget {widget.name} id {widget.id}')
+                log.debug(f'ASoC: creating DAPM widget {widget.name} id {widget.id}')
                 if widget.kcontrol_count != 0:
                     control_hdr = SndSocFwControlHeader(fw)
-                    print(f'ASoC: widget {widget.name} has {widget.kcontrol_count} controls of type {control_hdr.index:x}')
+                    log.debug(f'ASoC: widget {widget.name} has {widget.kcontrol_count} controls of type {control_hdr.index:x}')
                     if control_hdr.id_info in [
                             SocType.CONTROL_VOLSW,
                             SocType.CONTROL_STROBE,
@@ -243,7 +249,7 @@ def main(args):
                             if mixer != 0:
                                 control_hdr = SndSocFwControlHeader(fw)
                             mc = SndSocFwMixerControl(fw)
-                            print(f' adding DAPM widget mixer control {control_hdr.name} at {mixer}')
+                            log.debug(f' adding DAPM widget mixer control {control_hdr.name} at {mixer}')
                     elif control_hdr.id_info in [
                             SocType.CONTROL_ENUM,
                             SocType.CONTROL_ENUM_EXT,
@@ -253,43 +259,43 @@ def main(args):
                             SocType.DAPM_ENUM_VALUE,
                             SocType.DAPM_ENUM_EXT ]:
                         ec = SndSocFwEnumControl(fw)
-                        print(f' adding DAPM widget enum control {control_hdr.name}')
+                        log.debug(f' adding DAPM widget enum control {control_hdr.name}')
                     else:
-                        print(f'ASoC: invalid widget control type')
+                        log.warning(f'ASoC: invalid widget control type')
         elif hdr.type == SND_SOC_FW_DAI_LINK:
-            print('ASoC: Firmware DAIs not supported')
+            log.warning('ASoC: Firmware DAIs not supported')
         elif hdr.type == SND_SOC_FW_COEFF:
             if hdr.vendor_type == 0:
                 sfwk = SndSocFwKControl(fw)
-                print(f'ASoC: got {sfwk.count} new coefficients')
+                log.debug(f'ASoC: got {sfwk.count} new coefficients')
                 control_hdr = SndSocFwControlHeader(fw)
                 if control_hdr.id_info in [
                         SocType.CONTROL_ENUM,
                         SocType.CONTROL_ENUM_EXT,
                         SocType.CONTROL_ENUM_VALUE]:
                     ec = SndSocFwEnumControl(fw)
-                    print(f'ASoC: adding enum kcontrol {control_hdr.name} size {ec.max}')
+                    log.debug(f'ASoC: adding enum kcontrol {control_hdr.name} size {ec.max}')
                 else:
-                    print(f'ASoC: invalid coeff control type {control_hdr.id_info.name} count {sfwk.count}')
+                    log.debug(f'ASoC: invalid coeff control type {control_hdr.id_info.name} count {sfwk.count}')
                 hdr = SndSocFwHeader(fw)
                 next_offset = fw.tell() + hdr.size
                 cd = SndSocFileCoeffData(fw)
-                print(f'coeff {cd.id} size 0x{cd.size:x} with {cd.count} elems')
+                log.debug(f'coeff {cd.id} size 0x{cd.size:x} with {cd.count} elems')
                 fw.seek(cd.size, SEEK_CUR)
         elif hdr.type == SND_SOC_FW_VENDOR_FW:
             abe = AbeFirmwareHeader(fw)
-            print(f'ABE firmware size {hdr.size} bytes')
-            print(f'ABE mem P {abe.pmem_size} C {abe.cmem_size} D {abe.dmem_size} S {abe.smem_size} bytes')
-            print(f'ABE Firmware version {abe.version:x}')
+            log.debug(f'ABE firmware size {hdr.size} bytes')
+            log.debug(f'ABE mem P {abe.pmem_size} C {abe.cmem_size} D {abe.dmem_size} S {abe.smem_size} bytes')
+            log.debug(f'ABE Firmware version {abe.version:x}')
             fw.seek(abe.pmem_size, SEEK_CUR)
             fw.seek(abe.cmem_size, SEEK_CUR)
             fw.seek(abe.dmem_size, SEEK_CUR)
             fw.seek(abe.smem_size, SEEK_CUR)
         elif hdr.type == SND_SOC_FW_VENDOR_CONFIG:
-            print(f'ABE Config size {hdr.size} bytes')
+            log.debug(f'ABE Config size {hdr.size} bytes')
             fw.seek(hdr.size, SEEK_CUR)
         else:
-            print(f'vendor type {hdr.type}:{hdr.vendor_type} not supported')
+            log.warning(f'vendor type {hdr.type}:{hdr.vendor_type} not supported')
         assert fw.tell() == next_offset
 
 if __name__ == "__main__":
