@@ -1,2 +1,7 @@
 omap4_abe_new
 tags
+
+# Ignore vim files:
+*~
+*.swp
+*.swo
