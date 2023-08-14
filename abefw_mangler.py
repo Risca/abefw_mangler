@@ -3,7 +3,7 @@
 Module Docstring
 """
 
-__author__ = "Your Name"
+__author__ = "Patrik Dahlström"
 __version__ = "0.1.0"
 __license__ = "MIT"
 
