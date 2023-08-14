@@ -81,6 +81,7 @@ class SndSocFwHeader:
     size: int
 
     def __post_init__(self):
+        self.magic = self.magic.decode('utf-8')
         self.type = FwType(self.type)
 
 @header('<2L')
