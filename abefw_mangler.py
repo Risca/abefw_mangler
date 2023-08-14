@@ -7,6 +7,7 @@ __author__ = "Patrik Dahlström"
 __version__ = "0.1.0"
 __license__ = "MIT"
 
+from base64 import b64encode
 from dataclasses import asdict, dataclass, field, InitVar, make_dataclass
 from enum import IntEnum
 from io import BufferedReader, BytesIO, SEEK_CUR, SEEK_SET
@@ -240,8 +241,9 @@ def main(args):
                     log.debug(f'ASoC: adding mixer kcontrol {control_hdr.name} with access 0x{control_hdr.access}')
                     if control_hdr.tlv_size != 0:
                         tlv = SndSocFwControlTlv(fw)
+                        value = fw.read(tlv.length)
                         kcontrols[-1]['mixer']['tlv'] = asdict(tlv)
-                        fw.seek(tlv.length, SEEK_CUR)
+                        kcontrols[-1]['mixer']['tlv']['value'] = b64encode(value).decode()
                         log.debug(f' created TLV type {tlv.numid} size {tlv.length} bytes')
                 elif control_hdr.id_info in [
                         SocType.CONTROL_ENUM,
@@ -334,21 +336,23 @@ def main(args):
                 next_offset = fw.tell() + hdr.size
                 cd = SndSocFileCoeffData(fw)
                 fw_list[-1]['coefficients']['data'] = asdict(cd)
+                fw_list[-1]['coefficients']['data']['values'] = [
+                    b64encode(fw.read(cd.size // cd.count)).decode() for _ in range(cd.count)
+                ]
                 log.debug(f'coeff {cd.id} size 1x{cd.size:x} with {cd.count} elems')
-                fw.seek(cd.size, SEEK_CUR)
         elif hdr.type == FwType.SND_SOC_FW_VENDOR_FW:
             abe = AbeFirmwareHeader(fw)
             fw_list[-1]['fw'] = asdict(abe)
+            fw_list[-1]['fw']['pmem'] = b64encode(fw.read(abe.pmem_size)).decode()
+            fw_list[-1]['fw']['cmem'] = b64encode(fw.read(abe.cmem_size)).decode()
+            fw_list[-1]['fw']['dmem'] = b64encode(fw.read(abe.dmem_size)).decode()
+            fw_list[-1]['fw']['smem'] = b64encode(fw.read(abe.smem_size)).decode()
             log.debug(f'ABE firmware size {hdr.size} bytes')
             log.debug(f'ABE mem P {abe.pmem_size} C {abe.cmem_size} D {abe.dmem_size} S {abe.smem_size} bytes')
             log.debug(f'ABE Firmware version {abe.version:x}')
-            fw.seek(abe.pmem_size, SEEK_CUR)
-            fw.seek(abe.cmem_size, SEEK_CUR)
-            fw.seek(abe.dmem_size, SEEK_CUR)
-            fw.seek(abe.smem_size, SEEK_CUR)
         elif hdr.type == FwType.SND_SOC_FW_VENDOR_CONFIG:
             log.debug(f'ABE Config size {hdr.size} bytes')
-            fw.seek(hdr.size, SEEK_CUR)
+            fw_list[-1]['config'] = b64encode(fw.read(hdr.size)).decode()
         else:
             log.warning(f'vendor type {hdr.type}:{hdr.vendor_type} not supported')
         assert fw.tell() == next_offset
